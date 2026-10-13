@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "spacemcp": {
+        "type": "local",
+        "command": [
+          "dotnet",
+          "C:\\Users\\Chris\\Documents\\GitHub\\spacemcp\\src\\SpaceMcp.McpServer\\bin\\Release\\net8.0\\SpaceMcp.McpServer.dll"
+        ],
+        "environment": {
+          "SPACE_MCP_HOST": "127.0.0.1",
+          "SPACE_MCP_PORT": "4627"
+        }
+      }
+    }
+  }
+}

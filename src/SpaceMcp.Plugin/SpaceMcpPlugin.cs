@@ -6,8 +6,11 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Sandbox;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Blocks;
+using Sandbox.ModAPI;
 using SpaceMcp.Protocol;
 using VRage.Plugins;
 
@@ -64,9 +67,9 @@ namespace SpaceMcp.Plugin
                 TcpClient client;
                 try
                 {
-                    client = await _listener!.AcceptTcpClientAsync(ct);
+                    client = await _listener!.AcceptTcpClientAsync();
                 }
-                catch (OperationCanceledException)
+                catch (Exception)
                 {
                     break;
                 }
@@ -78,7 +81,7 @@ namespace SpaceMcp.Plugin
         {
             try
             {
-                await using var stream = client.GetStream();
+                using var stream = client.GetStream();
                 while (!ct.IsCancellationRequested)
                 {
                     var request = await Bridge.ReceiveAsync<Request>(stream, ct);
@@ -109,7 +112,7 @@ namespace SpaceMcp.Plugin
                 {
                     tcs.TrySetResult(new ErrorResponse(ex.Message));
                 }
-            });
+            }, "SpaceMcp");
             return tcs.Task;
         }
 
@@ -120,14 +123,13 @@ namespace SpaceMcp.Plugin
                 case ListRequest:
                     {
                         var list = new List<PbInfo>();
-                        var blocks = new List<MyProgrammableBlock>();
-                        MyEntities.GetEntitiesOfType(blocks);
-                        foreach (var pb in blocks)
+                        foreach (var block in EnumerateProgrammableBlocks())
                         {
+                            var pb = (IMyProgrammableBlock)block;
                             list.Add(new PbInfo(
-                                pb.EntityId,
-                                pb.CustomName,
-                                pb.CubeGrid?.CustomName ?? "",
+                                block.EntityId,
+                                block.CustomName?.ToString() ?? "",
+                                block.CubeGrid?.DisplayName ?? "",
                                 pb.IsRunning,
                                 pb.ProgramData?.Length ?? 0));
                         }
@@ -137,30 +139,30 @@ namespace SpaceMcp.Plugin
                 case ReadRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        return pb is null ? new ErrorResponse("Unknown entityId") : new ReadResponse(r.EntityId, pb.ProgramData ?? "");
+                        return pb is null ? new ErrorResponse("Unknown entityId") : new ReadResponse(r.EntityId, ((IMyProgrammableBlock)pb).ProgramData ?? "");
                     }
 
                 case WriteRequest w:
                     {
                         var pb = Find(w.EntityId);
                         if (pb is null) return new ErrorResponse("Unknown entityId");
-                        pb.ProgramData = w.Code;
-                        return new WriteResponse(true, pb.DetailedInfo ?? "");
+                        ((IMyProgrammableBlock)pb).ProgramData = w.Code;
+                        return new WriteResponse(true, pb.DetailedInfo?.ToString() ?? "");
                     }
 
                 case RecompileRequest r:
                     {
                         var pb = Find(r.EntityId);
                         if (pb is null) return new ErrorResponse("Unknown entityId");
-                        pb.Recompile();
-                        return new RecompileResponse(true, pb.DetailedInfo ?? "");
+                        ((IMyProgrammableBlock)pb).Recompile();
+                        return new RecompileResponse(true, pb.DetailedInfo?.ToString() ?? "");
                     }
 
                 case RunRequest r:
                     {
                         var pb = Find(r.EntityId);
                         if (pb is null) return new ErrorResponse("Unknown entityId");
-                        pb.TryRun(r.Arg ?? "");
+                        ((IMyProgrammableBlock)pb).TryRun(r.Arg ?? "");
                         return new RunResponse(true);
                     }
 
@@ -169,13 +171,17 @@ namespace SpaceMcp.Plugin
             }
         }
 
-        private MyProgrammableBlock? Find(long entityId)
+        private static MyProgrammableBlock? Find(long entityId)
         {
-            var blocks = new List<MyProgrammableBlock>();
-            MyEntities.GetEntitiesOfType(blocks);
-            foreach (var pb in blocks)
-                if (pb.EntityId == entityId) return pb;
+            foreach (var block in EnumerateProgrammableBlocks())
+                if (block.EntityId == entityId) return block;
             return null;
+        }
+
+        private static IEnumerable<MyProgrammableBlock> EnumerateProgrammableBlocks()
+        {
+            foreach (var entity in MyEntities.GetEntities())
+                if (entity is MyProgrammableBlock pb) yield return pb;
         }
     }
 }

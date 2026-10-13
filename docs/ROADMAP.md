@@ -36,7 +36,9 @@ The core milestone (in-game plugin bridge + MCP server) is the priority; these a
 - Config: port + host via `SpaceMcp.json` (plugin) and `SPACE_MCP_*` env (server). Add logging.
 
 ## Build/run (current)
-1. Build `SpaceMcp.Plugin` on Windows with SE installed; drop DLL + `SpaceMcp.json` into
-   `%AppData%\SpaceEngineers\Plugins\`, enable in Plugin Loader, restart SE.
-2. Register `SpaceMcp.McpServer` as a stdio MCP server in the AI client (`mcp.json`).
-3. For dev without the game: run `SpaceMcp.Simulator` to emulate the bridge.
+1. Deploy the plugin with `.\scripts\deploy-plugin.ps1` — it builds `SpaceMcp.Plugin`
+   and copies it into `<SpaceEngineers>\Bin64\Plugins\Local\` (the plugin-loader folder),
+   alongside a `SpaceMcp.json` config. See [DEPLOY.md](DEPLOY.md).
+2. Register `SpaceMcp.McpServer` as a stdio MCP server in the AI client (see
+   `docs/mcp.opencode.jsonc` and [DEPLOY.md](DEPLOY.md)).
+3. For dev without the game: run `SpaceMcp.Simulator` to emulate the bridge (port 4628).
