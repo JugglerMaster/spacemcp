@@ -73,12 +73,21 @@ needs (`Sandbox.*`, `VRage.*`, `System.Memory`, `System.Buffers`,
 - `SpaceMcp.Protocol.dll` — the shared wire protocol
 - `System.Text.Json.dll` — **only if its version differs from the game's**
 
-The last item exists because the plugin targets System.Text.Json `8.0.0.5`
-while the current game build ships `8.0.0.4` and configures **no binding
-redirect** for it (`SpaceEngineers.exe.config` redirects several other
+The last item exists because System.Text.Json is referenced at assembly version
+`8.0.0.5` while the current game build ships `8.0.0.4` and configures **no
+binding redirect** for it (`SpaceEngineers.exe.config` redirects several other
 assemblies but not `System.Text.Json`). Shipping the exact referenced version
 avoids a `FileLoadException`. Once the game ships `>= 8.0.0.5`, the script stops
 copying it automatically.
+
+> **Why the protocol also targets `net48`.** A `netstandard2.0` library
+> references System.Text.Json at assembly version `8.0.0.0`, whereas a `net48`
+> library references `8.0.0.5`. If `SpaceMcp.Protocol` were `netstandard2.0`
+> only, the plugin would carry two different STJ references and the protocol's
+> (`8.0.0.0`) would fail to resolve at runtime. `SpaceMcp.Protocol` therefore
+> multi-targets `netstandard2.0;net48`; the plugin consumes the `net48` build so
+> both halves reference `8.0.0.5` exactly. The MCP server (`net8.0`) uses the
+> `netstandard2.0` build.
 
 ### Plugin configuration — `SpaceMcp.json`
 
@@ -191,6 +200,7 @@ listens on `4628` and answers the same protocol with two seeded blocks.
 | `Connection refused` from a tool | Plugin isn't loaded or is bound to a different port. Check the plugin-loader log and `SpaceMcp.json`. |
 | Plugin doesn't appear in the loader | Confirm the DLL is in `Bin64\Plugins\Local\` (not `%AppData%`), and that the loader is installed. |
 | `Could not load file or assembly 'System.Text.Json, Version=8.0.0.5'` | `System.Text.Json.dll` wasn't copied next to the plugin. Re-run the deploy script without `-StageOnly`. |
+| `Could not load file or assembly 'System.Text.Json, Version=8.0.0.0'` | The protocol was built for `netstandard2.0` only. It must multi-target `netstandard2.0;net48` (see "What gets copied") so the plugin consumes the `net48` build; then re-deploy. |
 | Deploy copy fails / loops | Space Engineers is still running and holding the DLL. Close it and retry. |
 | `Unknown entityId` | The block list is stale; call `list_programmable_blocks` again. |
 
