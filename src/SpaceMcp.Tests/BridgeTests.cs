@@ -54,7 +54,18 @@ namespace SpaceMcp.Tests
         [Fact]
         public async Task Unknown_entity_returns_error()
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => _client.ReadAsync(999));
+            var ex = await Assert.ThrowsAsync<BridgeException>(() => _client.ReadAsync(999));
+            Assert.Equal("Unknown entityId", ex.Message);
+        }
+
+        [Fact]
+        public async Task Unreachable_plugin_gives_actionable_message()
+        {
+            // Port 1 has nothing listening, so the client cannot reach the plugin.
+            using var client = new SpaceMcpClient("127.0.0.1", 1);
+            var ex = await Assert.ThrowsAsync<BridgeException>(() => client.ListAsync());
+            Assert.Contains("127.0.0.1:1", ex.Message);
+            Assert.Contains("Space Engineers", ex.Message);
         }
     }
 }

@@ -20,14 +20,39 @@ namespace SpaceMcp.McpServer
         private async Task<TResponse> ExchangeAsync<TResponse>(Request request, CancellationToken ct = default)
             where TResponse : Response
         {
-            using var client = new TcpClient();
-            await client.ConnectAsync(_host, _port, ct);
-            await using var stream = client.GetStream();
-            await Bridge.SendAsync(stream, request, ct);
-            var response = await Bridge.ReceiveAsync<Response>(stream, ct);
-            if (response is TResponse typed) return typed;
-            if (response is ErrorResponse err) throw new InvalidOperationException(err.Message);
-            throw new InvalidOperationException("Unexpected response from bridge.");
+            try
+            {
+                using var client = new TcpClient();
+                await client.ConnectAsync(_host, _port, ct);
+                await using var stream = client.GetStream();
+                await Bridge.SendAsync(stream, request, ct);
+                var response = await Bridge.ReceiveAsync<Response>(stream, ct);
+                if (response is TResponse typed) return typed;
+                if (response is ErrorResponse err) throw new BridgeException(err.Message);
+                throw new BridgeException("Unexpected response from bridge.");
+            }
+            catch (BridgeException)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (SocketException ex)
+            {
+                throw new BridgeException(
+                    $"Could not connect to the SpaceMCP plugin at {_host}:{_port} " +
+                    $"({ex.SocketErrorCode}). Make sure Space Engineers is running, the SpaceMCP " +
+                    "plugin is enabled in the loader, and a world is loaded before calling this tool.",
+                    ex);
+            }
+            catch (Exception ex)
+            {
+                throw new BridgeException(
+                    $"Lost connection to the SpaceMCP plugin at {_host}:{_port}: {ex.Message}",
+                    ex);
+            }
         }
 
         public Task<ListResponse> ListAsync(CancellationToken ct = default) => ExchangeAsync<ListResponse>(new ListRequest(), ct);
@@ -43,5 +68,17 @@ namespace SpaceMcp.McpServer
         public void Dispose()
         {
         }
+    }
+
+    /// <summary>
+    /// Raised when the plugin is unreachable or returns an error. The message is
+    /// written to be shown directly to an MCP client, so it names the host/port
+    /// and the likely cause.
+    /// </summary>
+    public sealed class BridgeException : Exception
+    {
+        public BridgeException(string message) : base(message) { }
+
+        public BridgeException(string message, Exception inner) : base(message, inner) { }
     }
 }
