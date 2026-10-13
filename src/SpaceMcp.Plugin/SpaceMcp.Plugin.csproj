@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SpaceMcp.Plugin</RootNamespace>
+    <AssemblyName>SpaceMcp.Plugin</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="VRage.Game"><HintPath>$(SEGameDir)\VRage.Game.dll</HintPath></Reference>
+    <Reference Include="VRage"><HintPath>$(SEGameDir)\VRage.dll</HintPath></Reference>
+    <Reference Include="Sandbox.Game"><HintPath>$(SEGameDir)\Sandbox.Game.dll</HintPath></Reference>
+    <Reference Include="Sandbox.Common"><HintPath>$(SEGameDir)\Sandbox.Common.dll</HintPath></Reference>
+    <Reference Include="VRage.Library"><HintPath>$(SEGameDir)\VRage.Library.dll</HintPath></Reference>
+    <Reference Include="VRage.Math"><HintPath>$(SEGameDir)\VRage.Math.dll</HintPath></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SpaceMcp.Protocol\SpaceMcp.Protocol.csproj" />
+  </ItemGroup>
+</Project>

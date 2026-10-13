@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <SEGameDir Condition="'$(SEGameDir)' == ''">$([System.Environment]::GetEnvironmentVariable('SE_GAME_DIR'))</SEGameDir>
+    <SEGameDir Condition="'$(SEGameDir)' == ''">..\lib</SEGameDir>
+  </PropertyGroup>
+</Project>

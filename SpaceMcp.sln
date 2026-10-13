@@ -1,0 +1,55 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{E666B26E-10DE-49A0-A85A-2753B9923236}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMcp.Protocol", "src\SpaceMcp.Protocol\SpaceMcp.Protocol.csproj", "{A3379E64-5C77-4F18-9DA6-F7DD130995B4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMcp.McpServer", "src\SpaceMcp.McpServer\SpaceMcp.McpServer.csproj", "{56BE06E7-0D59-44B8-B359-578585A300BD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMcp.Simulator", "src\SpaceMcp.Simulator\SpaceMcp.Simulator.csproj", "{E8549386-B970-4A94-AA40-8DC64B786D95}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMcp.Plugin", "src\SpaceMcp.Plugin\SpaceMcp.Plugin.csproj", "{BAC4A209-3B0F-419F-8352-61FC1A8F9A34}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMcp.Tests", "src\SpaceMcp.Tests\SpaceMcp.Tests.csproj", "{8525B106-FBD0-4FB4-B386-F1579D231207}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A3379E64-5C77-4F18-9DA6-F7DD130995B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3379E64-5C77-4F18-9DA6-F7DD130995B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3379E64-5C77-4F18-9DA6-F7DD130995B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3379E64-5C77-4F18-9DA6-F7DD130995B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56BE06E7-0D59-44B8-B359-578585A300BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56BE06E7-0D59-44B8-B359-578585A300BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56BE06E7-0D59-44B8-B359-578585A300BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56BE06E7-0D59-44B8-B359-578585A300BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8549386-B970-4A94-AA40-8DC64B786D95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8549386-B970-4A94-AA40-8DC64B786D95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8549386-B970-4A94-AA40-8DC64B786D95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8549386-B970-4A94-AA40-8DC64B786D95}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BAC4A209-3B0F-419F-8352-61FC1A8F9A34}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BAC4A209-3B0F-419F-8352-61FC1A8F9A34}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BAC4A209-3B0F-419F-8352-61FC1A8F9A34}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BAC4A209-3B0F-419F-8352-61FC1A8F9A34}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8525B106-FBD0-4FB4-B386-F1579D231207}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8525B106-FBD0-4FB4-B386-F1579D231207}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8525B106-FBD0-4FB4-B386-F1579D231207}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8525B106-FBD0-4FB4-B386-F1579D231207}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A3379E64-5C77-4F18-9DA6-F7DD130995B4} = {E666B26E-10DE-49A0-A85A-2753B9923236}
+		{56BE06E7-0D59-44B8-B359-578585A300BD} = {E666B26E-10DE-49A0-A85A-2753B9923236}
+		{E8549386-B970-4A94-AA40-8DC64B786D95} = {E666B26E-10DE-49A0-A85A-2753B9923236}
+		{BAC4A209-3B0F-419F-8352-61FC1A8F9A34} = {E666B26E-10DE-49A0-A85A-2753B9923236}
+		{8525B106-FBD0-4FB4-B386-F1579D231207} = {E666B26E-10DE-49A0-A85A-2753B9923236}
+	EndGlobalSection
+EndGlobal
