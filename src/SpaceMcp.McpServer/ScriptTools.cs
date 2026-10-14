@@ -139,8 +139,8 @@ namespace SpaceMcp.McpServer
         [McpServerTool, Description("Run a programmable block, optionally passing a run argument string. Returns ok and the block's Echo/console output captured from this run (TryRun is synchronous, so the output is available immediately). Note SE's output buffer accumulates across runs; use check_script first to reset it if you want only this run's output.")]
         public async Task<string> RunScript(
             [Description("Entity id of the programmable block")] long entityId,
-            [Description("Optional run argument")] string? argument,
-            CancellationToken ct)
+            [Description("Optional run argument")] string? argument = null,
+            CancellationToken ct = default)
         {
             return await SafeCall(async () =>
             {
