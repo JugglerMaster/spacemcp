@@ -27,7 +27,10 @@ The core milestone (in-game plugin bridge + MCP server) is the priority; these a
 - Current: keyed by stable `EntityId`. Deferred: ScriptDev-style friendly names via block name `[Script Name]` for editor familiarity.
 
 ### Multi-environment
-- Current: single-player / locally hosted only (`Sync.IsServer` true). Deferred: Torch server variant for dedicated/multiplayer admin.
+- Current: single-player / locally hosted only (`Sync.IsServer` true). The
+  multiplayer *client* flow (owned-blocks filter, terminal-Run path, output
+  subscription, async results) is in progress — plan: [MP-PLAN.md](MP-PLAN.md).
+  Deferred: Torch server variant for dedicated/multiplayer admin.
 
 ### Misc
 - Push notifications: plugin → clients when a PB script changes in-game (so editor/MCP can refresh).

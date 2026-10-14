@@ -13,6 +13,7 @@ using Sandbox.Game.Entities.Blocks;
 using Sandbox.Game.World;
 using Sandbox.ModAPI;
 using SpaceMcp.Protocol;
+using VRage.Game;
 using VRage.Plugins;
 
 namespace SpaceMcp.Plugin
@@ -123,6 +124,48 @@ namespace SpaceMcp.Plugin
             "settings (Load Game > Edit Settings > Advanced > In-game scripts), " +
             "reload the world, then try again.";
 
+        // Used wherever an id resolves to a block the local player does not own.
+        // A loaded world (especially in multiplayer or a scenario) contains
+        // programmable blocks on NPC, scenario and other players' grids; those
+        // are deliberately out of scope for this tool.
+        private const string NotOwnedMessage =
+            "Unknown entityId, or it belongs to a block the local player does not own " +
+            "(it is not on a grid you own or share with your faction). " +
+            "Call list_programmable_blocks for the ids you can control.";
+
+        /// <summary>
+        /// Subscribes this client to the block's console output when this
+        /// process is not the simulation authority.
+        ///
+        /// Compiling and running a programmable block are server-authoritative:
+        /// on a multiplayer client the block's console text (DetailedInfo) is
+        /// not produced locally, it is pushed out by the server. Vanilla only
+        /// pushes to clients that have subscribed, which happens while that
+        /// block's terminal page is open
+        /// (MyGuiControlGenericFunctionalBlock -> MyTerminalBlock.OpenedInTerminal
+        /// -> MyProgrammableBlock.OnOpenedInTerminal -> SubscribeToProgramResponse).
+        /// Raising that same public event subscribes this endpoint without
+        /// needing any screen open, so run/check/output can see the server's
+        /// output.
+        ///
+        /// On a host or in single-player the script runs in-process and
+        /// DetailedInfo is already current, so this is deliberately skipped:
+        /// the round-trip would only address the server's own endpoint.
+        /// </summary>
+        private static void EnsureProgramOutputSubscription(MyProgrammableBlock block)
+        {
+            try
+            {
+                if (Sandbox.Game.Multiplayer.Sync.IsServer) return;
+                (block as Sandbox.Game.Entities.Cube.MyTerminalBlock)?.OnOpenedInTerminal(true);
+            }
+            catch
+            {
+                // Best effort. Without the subscription the tool still works on
+                // the host and in single-player, just not as a remote client.
+            }
+        }
+
         private Response HandleOnGameThread(Request request)
         {
             // When the world has in-game scripts turned off, compiling and
@@ -138,6 +181,7 @@ namespace SpaceMcp.Plugin
                         var list = new List<PbInfo>();
                         foreach (var block in EnumerateProgrammableBlocks())
                         {
+                            if (!IsOwnedByLocalPlayer(block)) continue;
                             var pb = (IMyProgrammableBlock)block;
                             list.Add(new PbInfo(
                                 block.EntityId,
@@ -152,13 +196,14 @@ namespace SpaceMcp.Plugin
                 case ReadRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        return pb is null ? new ErrorResponse("Unknown entityId") : new ReadResponse(r.EntityId, ((IMyProgrammableBlock)pb).ProgramData ?? "");
+                        return pb is null ? new ErrorResponse(NotOwnedMessage) : new ReadResponse(r.EntityId, ((IMyProgrammableBlock)pb).ProgramData ?? "");
                     }
 
                 case WriteRequest w:
                     {
                         var pb = Find(w.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
+                        EnsureProgramOutputSubscription(pb);
                         var block = (IMyProgrammableBlock)pb;
                         block.ProgramData = w.Code;
                         // Recompile so the returned Detail reflects the newly
@@ -171,7 +216,8 @@ namespace SpaceMcp.Plugin
                 case RecompileRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
+                        EnsureProgramOutputSubscription(pb);
                         ((IMyProgrammableBlock)pb).Recompile();
                         return new RecompileResponse(true, pb.DetailedInfo?.ToString() ?? "");
                     }
@@ -179,12 +225,18 @@ namespace SpaceMcp.Plugin
                 case RunRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
+                        EnsureProgramOutputSubscription(pb);
                         var block = (IMyProgrammableBlock)pb;
-                        block.TryRun(r.Arg ?? "");
-                        // TryRun is synchronous on the game thread, so the Echo
-                        // output is already in DetailedInfo by the time we read
-                        // it. UNTESTED on real SE.
+                        // Use the same call the terminal's "Run" button makes:
+                        // MyProgrammableBlock.TerminalRun -> OnRunApplied ->
+                        // Run(argument, UpdateType.Terminal). On the server/host
+                        // this executes synchronously, so Echo is already in
+                        // DetailedInfo. On a client it raises
+                        // SendRunProgramRequest to the server, which runs the
+                        // script asynchronously (and only if the server accepts
+                        // the request).
+                        block.Run(r.Arg ?? "", Sandbox.ModAPI.Ingame.UpdateType.Terminal);
                         var output = block.DetailedInfo?.ToString() ?? "";
                         return new RunResponse(true, output);
                     }
@@ -199,7 +251,8 @@ namespace SpaceMcp.Plugin
                 case CheckRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
+                        EnsureProgramOutputSubscription(pb);
                         var block = (IMyProgrammableBlock)pb;
                         block.Recompile();
                         var code = block.ProgramData ?? "";
@@ -211,7 +264,7 @@ namespace SpaceMcp.Plugin
                 case OutputRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
                         // Reads the script's Echo output (SE's DetailedInfo).
                         // BEHAVIOR (from the official SE wiki, UNTESTED in this
                         // plugin integration — only simulator-verified):
@@ -226,6 +279,7 @@ namespace SpaceMcp.Plugin
                         // clears this buffer (replacing it with compile status).
                         // To capture a SINGLE run's output, recompile/check
                         // first, then run_script, then get_output immediately.
+                        EnsureProgramOutputSubscription(pb);
                         var output = ((IMyProgrammableBlock)pb).DetailedInfo?.ToString() ?? "";
                         return new OutputResponse(output);
                     }
@@ -233,7 +287,7 @@ namespace SpaceMcp.Plugin
                 case ReadCustomDataRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
                         // UNTESTED: relies on IMyTerminalBlock.CustomData.
                         var data = ((IMyTerminalBlock)pb).CustomData ?? "";
                         return new ReadCustomDataResponse(data);
@@ -242,7 +296,7 @@ namespace SpaceMcp.Plugin
                 case WriteCustomDataRequest r:
                     {
                         var pb = Find(r.EntityId);
-                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        if (pb is null) return new ErrorResponse(NotOwnedMessage);
                         // UNTESTED: relies on IMyTerminalBlock.CustomData.
                         ((IMyTerminalBlock)pb).CustomData = r.Data;
                         return new WriteCustomDataResponse(true);
@@ -253,6 +307,8 @@ namespace SpaceMcp.Plugin
                         var results = new List<CheckResponse>();
                         foreach (var block in EnumerateProgrammableBlocks())
                         {
+                            if (!IsOwnedByLocalPlayer(block)) continue;
+                            EnsureProgramOutputSubscription(block);
                             var pb = (IMyProgrammableBlock)block;
                             pb.Recompile();
                             var code = pb.ProgramData ?? "";
@@ -267,11 +323,67 @@ namespace SpaceMcp.Plugin
             }
         }
 
+        /// <summary>
+        /// Resolves a programmable block by id, but only if the local player owns
+        /// it. Every per-block tool goes through here, so an unowned block can
+        /// neither be read nor modified even when its id is known.
+        /// </summary>
         private static MyProgrammableBlock? Find(long entityId)
         {
             foreach (var block in EnumerateProgrammableBlocks())
-                if (block.EntityId == entityId) return block;
+                if (block.EntityId == entityId && IsOwnedByLocalPlayer(block)) return block;
             return null;
+        }
+
+        /// <summary>
+        /// Whether the local player owns this block, directly or through a
+        /// faction share.
+        ///
+        /// A loaded world contains programmable blocks on grids the local player
+        /// has no business touching: NPC and scenario grids out of the box, and
+        /// other players' grids in multiplayer. <see cref="EnumerateProgrammableBlocks"/>
+        /// walks *every* grid in the entity set, so without this filter the tool
+        /// would offer those blocks up for reading, rewriting and running.
+        ///
+        /// Ownership is taken from the grid's owner lists (the same data the
+        /// game's terminal permissions use) and from
+        /// <see cref="MyCubeBlock.GetUserRelationToOwner(long, MyRelationsBetweenPlayerAndBlock)"/>,
+        /// which also resolves faction ownership and sharing. When there is no
+        /// local player at all (a dedicated server with nobody connected) there
+        /// is nothing to scope to, so ownership is treated as satisfied.
+        /// </summary>
+        private static bool IsOwnedByLocalPlayer(MyCubeBlock block)
+        {
+            long playerId;
+            try
+            {
+                playerId = MySession.Static?.LocalPlayerId ?? 0;
+            }
+            catch
+            {
+                // Cannot read the session; do not silently hide everything.
+                return true;
+            }
+
+            if (playerId == 0) return true;
+
+            var grid = block.CubeGrid;
+            if (grid is null) return false;
+
+            if (grid.BigOwners.Contains(playerId) || grid.SmallOwners.Contains(playerId))
+                return true;
+
+            try
+            {
+                var relation = block.GetUserRelationToOwner(
+                    playerId, MyRelationsBetweenPlayerAndBlock.NoOwnership);
+                return relation == MyRelationsBetweenPlayerAndBlock.Owner
+                    || relation == MyRelationsBetweenPlayerAndBlock.FactionShare;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

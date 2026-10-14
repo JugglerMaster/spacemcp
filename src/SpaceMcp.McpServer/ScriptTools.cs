@@ -20,7 +20,7 @@ namespace SpaceMcp.McpServer
             _client = client;
         }
 
-        [McpServerTool, Description("List all programmable blocks in the running Space Engineers world. Returns each block's entityId (a string — SE entity ids are 64-bit and exceed JavaScript's safe integer range, so always pass this exact string back to the other tools), block name, grid name, running state, and current script length.")]
+        [McpServerTool, Description("List the programmable blocks the local player controls — blocks on grids you own, or that are shared with your faction. Blocks on NPC, scenario and other players' grids are deliberately excluded, so every tool only accepts entityIds from this list. Returns each block's entityId (a string — SE entity ids are 64-bit and exceed JavaScript's safe integer range, so always pass this exact string back to the other tools), block name, grid name, running state, and current script length.")]
         public async Task<string> ListProgrammableBlocks(CancellationToken ct)
         {
             return await SafeCall(async () =>
@@ -144,7 +144,7 @@ namespace SpaceMcp.McpServer
             });
         }
 
-        [McpServerTool, Description("Run a programmable block, optionally passing a run argument string. Returns ok and the block's Echo/console output captured from this run (TryRun is synchronous, so the output is available immediately). Note SE's output buffer accumulates across runs; use check_script first to reset it if you want only this run's output.")]
+        [McpServerTool, Description("Run a programmable block, optionally passing a run argument string. This is the same call the terminal's Run button makes (Run with UpdateType.Terminal). In single-player and on the host the script runs synchronously, so the returned output is this run's Echo. In multiplayer the run is executed by the server, so the output arrives later — and only while a client has the block's terminal open — so the returned output may be stale or empty. Note SE's output buffer accumulates across runs; use check_script first to reset it if you want only this run's output.")]
         public async Task<string> RunScript(
             [Description("Entity id of the programmable block, as the exact string from list_programmable_blocks")] string entityId,
             [Description("Optional run argument")] string? argument = null,
