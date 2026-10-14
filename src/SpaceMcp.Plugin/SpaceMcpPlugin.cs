@@ -10,6 +10,7 @@ using Sandbox;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Blocks;
+using Sandbox.Game.World;
 using Sandbox.ModAPI;
 using SpaceMcp.Protocol;
 using VRage.Plugins;
@@ -116,8 +117,20 @@ namespace SpaceMcp.Plugin
             return tcs.Task;
         }
 
+        private const string ScriptsDisabledMessage =
+            "In-game scripts are disabled in this world, so the programmable block " +
+            "cannot be compiled or run. Enable 'In-game scripts' in the world's " +
+            "settings (Load Game > Edit Settings > Advanced > In-game scripts), " +
+            "reload the world, then try again.";
+
         private Response HandleOnGameThread(Request request)
         {
+            // When the world has in-game scripts turned off, compiling and
+            // running silently do nothing. Surface that as a clear error up
+            // front instead of reporting misleading success.
+            if (RequiresScripts(request) && !ScriptsEnabled())
+                return new ErrorResponse(ScriptsDisabledMessage);
+
             switch (request)
             {
                 case ListRequest:
@@ -262,23 +275,80 @@ namespace SpaceMcp.Plugin
         }
 
         /// <summary>
-        /// Heuristic for whether a recompile succeeded. UNTESTED against real
-        /// SE: the public SE API does not expose a clean compile-success flag,
-        /// so we treat the compiler output (DetailedInfo) as a failure when it
-        /// mentions an error or exception. The raw output is always passed
-        /// through via <see cref="CheckResponse.Detail"/>, so the model can read
-        /// the exact message even when this heuristic is wrong.
+        /// Heuristic for whether a recompile succeeded. The public SE API does
+        /// not expose a clean compile-success flag, so we treat the compiler
+        /// output (DetailedInfo) as a failure when it mentions an error or
+        /// exception, or the known empty-script message ("Main method not
+        /// found"). The raw output is always passed through via
+        /// <see cref="CheckResponse.Detail"/>, so the model can read the exact
+        /// message even when this heuristic is wrong.
         /// </summary>
         private static bool LooksCompiled(string detail)
         {
+            if (string.IsNullOrWhiteSpace(detail)) return true;
             return !detail.Contains("error", StringComparison.OrdinalIgnoreCase)
-                && !detail.Contains("exception", StringComparison.OrdinalIgnoreCase);
+                && !detail.Contains("exception", StringComparison.OrdinalIgnoreCase)
+                && !detail.Contains("Main method not found", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>True for requests that compile or run a script.</summary>
+        private static bool RequiresScripts(Request request) =>
+            request is WriteRequest
+                or RecompileRequest
+                or RunRequest
+                or CheckRequest
+                or CheckAllRequest;
+
+        /// <summary>
+        /// Whether in-game scripting is enabled for the loaded world. Defaults
+        /// to true when the session is not available so we never block on an
+        /// unknown state.
+        /// </summary>
+        private static bool ScriptsEnabled()
+        {
+            try
+            {
+                return MySession.Static?.EnableIngameScripts ?? true;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Enumerates all programmable blocks. Blocks are reachable both
+        /// directly from <see cref="MyEntities"/> (when present) and from each
+        /// grid's fat-block set. The grid walk is the reliable path: individual
+        /// cube blocks are not guaranteed to appear in <see cref="MyEntities.GetEntities"/>.
+        /// </summary>
         private static IEnumerable<MyProgrammableBlock> EnumerateProgrammableBlocks()
         {
+            var seen = new HashSet<long>();
             foreach (var entity in MyEntities.GetEntities())
-                if (entity is MyProgrammableBlock pb) yield return pb;
+            {
+                if (entity is MyProgrammableBlock direct)
+                {
+                    if (seen.Add(direct.EntityId)) yield return direct;
+                }
+                else if (entity is MyCubeGrid grid)
+                {
+                    // Fat blocks (MyCubeBlock) off the grid. Cube blocks are not
+                    // part of MyEntities.GetEntities(); they belong to the grid.
+                    foreach (var block in grid.GetFatBlocks())
+                    {
+                        if (block is MyProgrammableBlock pb && seen.Add(pb.EntityId))
+                            yield return pb;
+                    }
+                    // Belt-and-braces: some builds expose blocks only via the
+                    // slim-block set, whose FatBlock is the terminal block.
+                    foreach (var slim in grid.CubeBlocks)
+                    {
+                        if (slim.FatBlock is MyProgrammableBlock spb && seen.Add(spb.EntityId))
+                            yield return spb;
+                    }
+                }
+            }
         }
     }
 }

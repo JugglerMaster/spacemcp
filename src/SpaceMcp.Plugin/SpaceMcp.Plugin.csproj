@@ -1,16 +1,40 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <!--
+      net48  -> Pulsar's "Legacy" flavour (Space Engineers 1 on .NET Framework).
+      net8.0 -> Pulsar's "Interim" flavour (Space Engineers 1 on .NET 10 via
+                dotnet-compat); a net8.0 assembly runs on the .NET 10 host.
+    -->
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <RootNamespace>SpaceMcp.Plugin</RootNamespace>
     <AssemblyName>SpaceMcp.Plugin</AssemblyName>
+    <!--
+      The game ships .NET Framework assemblies. The net8.0 target must be
+      allowed to reference them (they are loaded by the game/dotnet-compat
+      at runtime).
+    -->
+    <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
   </PropertyGroup>
-  <ItemGroup>
+
+  <!-- .NET Framework build (Legacy.exe): ship the protocol as a sibling DLL. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <ProjectReference Include="..\SpaceMcp.Protocol\SpaceMcp.Protocol.csproj" />
   </ItemGroup>
+
+  <!--
+    CoreCLR build (Interim.exe): compile the protocol into the plugin so it is
+    a single self-contained DLL. System.Text.Json comes from the shared
+    framework, so nothing else needs to travel with it.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <Compile Include="..\SpaceMcp.Protocol\Protocol.cs" Link="Protocol\Protocol.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="VRage.Game"><HintPath>$(SEGameDir)\VRage.Game.dll</HintPath></Reference>
     <Reference Include="VRage"><HintPath>$(SEGameDir)\VRage.dll</HintPath></Reference>
@@ -18,8 +42,5 @@
     <Reference Include="Sandbox.Common"><HintPath>$(SEGameDir)\Sandbox.Common.dll</HintPath></Reference>
     <Reference Include="VRage.Library"><HintPath>$(SEGameDir)\VRage.Library.dll</HintPath></Reference>
     <Reference Include="VRage.Math"><HintPath>$(SEGameDir)\VRage.Math.dll</HintPath></Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\SpaceMcp.Protocol\SpaceMcp.Protocol.csproj" />
   </ItemGroup>
 </Project>

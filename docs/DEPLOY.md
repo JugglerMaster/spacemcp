@@ -19,16 +19,24 @@ Both halves must run on the same machine. Nothing is exposed off-loopback.
 ## Prerequisites
 
 - **Space Engineers** (Steam app `244850`), with a plugin loader installed.
-  The plugins live under `<SpaceEngineers>\Bin64\Plugins\Local\`.
   - The endorsed **Plugin Loader** has been retired; its replacement is
-    **Pulsar**. Either way, the on-disk location for a locally-built plugin is
-    `Bin64\Plugins\Local\`.
+    **Pulsar**. Which runtime a plugin needs — and where it is dropped — depends
+    on the **Pulsar flavour**:
+      - **Legacy** — SE1 on .NET Framework 4.8. Local plugins live in the
+        game's `Bin64\Plugins\Local\`, and the **`net48`** build is used.
+      - **Interim** — SE1 on .NET 10 via dotnet-compat (**CoreCLR**). Only
+        .NET 8+ assemblies load (the `net48` build is skipped as `Host!`), and
+        local plugins live under `<PulsarRoot>\Legacy\Local\` — **not** the
+        game's `Bin64`. Use the **`net8.0`** build.
+      - **Modern** — SE2 (not currently supported).
 - **.NET SDK 8** — needed to build the plugin and to run the MCP server.
   Check with `dotnet --list-sdks`.
 - Windows PowerShell 5.1 (built in) to run the deploy script.
 
-> The plugin is a .NET Framework 4.8 assembly and is **not** a standalone app —
-> it is loaded into the game process, so it never needs `dotnet` at runtime.
+> The plugin is a class library, **not** a standalone app — it is loaded into the
+> game process, so it never needs `dotnet` at runtime. It multi-targets `net48`
+> (classic loader / Pulsar-Legacy) and `net8.0` (Pulsar-Interim/CoreCLR); see
+> "Deploying to Pulsar" below.
 
 ---
 
@@ -62,6 +70,59 @@ Useful switches:
 | `-Force` | Overwrite an existing `SpaceMcp.json`. |
 
 **Close Space Engineers before deploying** — the game locks the DLLs.
+
+### Deploying to Pulsar (Interim / CoreCLR)
+
+The Interim flavour runs Space Engineers 1 on **.NET 10 (CoreCLR)**, so it loads
+only .NET 8+ assemblies. Use the plugin's `net8.0` build, which is
+**self-contained**: the wire protocol is compiled into it and `System.Text.Json`
+comes from the .NET 10 shared framework, so nothing else has to travel with it.
+
+```powershell
+# 1. Build the net8 (Pulsar-Interim) flavour.
+dotnet build src\SpaceMcp.Plugin\SpaceMcp.Plugin.csproj -c Release -f net8.0
+
+# 2. Copy it into Pulsar's local-plugin folder as `plugin.dll`.
+#    Interim resolves its plugin directory to <PulsarRoot>\Legacy\Local\.
+$PulsarRoot = 'C:\path\to\Pulsar-v2.x.y-win-x64'
+$dst = Join-Path $PulsarRoot 'Legacy\Local\SpaceMcp'
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+$bin = 'src\SpaceMcp.Plugin\bin\Release\net8.0'
+Copy-Item (Join-Path $bin 'SpaceMcp.Plugin.dll') (Join-Path $dst 'plugin.dll') -Force
+Copy-Item (Join-Path $bin 'SpaceMcp.Plugin.pdb') (Join-Path $dst 'plugin.pdb') -Force
+```
+
+Notes:
+
+- A **folder** plugin must contain a file named exactly `plugin.dll` (or
+  `<folderName>.dll`). Do **not** copy the game assemblies (`Sandbox.*`,
+  `VRage.*`) next to it — the game already provides them, and stray DLLs there
+  would be loaded as plugins themselves.
+- Add `SpaceMcp.json` (`{ "port": 4627 }`) to the same folder.
+- Enable it in `<PulsarRoot>\Legacy\Profiles\Current.xml`:
+
+  ```xml
+  <Profile xmlns:xsi="..." xmlns:xsd="...">
+    <Name>Current</Name>
+    ...
+    <Local>
+      <string>SpaceMcp.dll</string>
+    </Local>
+    ...
+  </Profile>
+  ```
+
+  The id is `<folderName>.dll` — `SpaceMcp.dll` for the folder `SpaceMcp`
+  (the loader reports it as `Enabled Plugins: SpaceMcp (SpaceMcp.dll)`).
+
+- After launching, confirm in `<PulsarRoot>\Legacy\info.log`:
+
+  ```
+  Runtime: CoreCLR
+  Enabled Plugins: SpaceMcp (SpaceMcp.dll), ...
+  ```
+
+**Close Space Engineers before copying** — the running game holds `plugin.dll`.
 
 ### What gets copied (and why so little)
 
@@ -179,7 +240,8 @@ dotnet build src\SpaceMcp.McpServer\SpaceMcp.McpServer.csproj -c Release
 
 ## 3. Verify end to end
 
-1. Start Space Engineers and enable the plugin in the plugin-loader menu.
+1. Start Space Engineers and enable the plugin in the plugin-loader menu (or, on
+   Pulsar, add it to the profile as shown above).
 2. Load a world that contains a programmable block.
 3. In your AI client, call `list_programmable_blocks`. It should return the
    blocks in the world with their `entityId`, names, running state and script
