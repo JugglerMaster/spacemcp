@@ -146,8 +146,13 @@ namespace SpaceMcp.Plugin
                     {
                         var pb = Find(w.EntityId);
                         if (pb is null) return new ErrorResponse("Unknown entityId");
-                        ((IMyProgrammableBlock)pb).ProgramData = w.Code;
-                        return new WriteResponse(true, pb.DetailedInfo?.ToString() ?? "");
+                        var block = (IMyProgrammableBlock)pb;
+                        block.ProgramData = w.Code;
+                        // Recompile so the returned Detail reflects the newly
+                        // written code (otherwise it would be the previous
+                        // compile's stale output). UNTESTED on real SE.
+                        block.Recompile();
+                        return new WriteResponse(true, block.DetailedInfo?.ToString() ?? "");
                     }
 
                 case RecompileRequest r:
@@ -162,8 +167,86 @@ namespace SpaceMcp.Plugin
                     {
                         var pb = Find(r.EntityId);
                         if (pb is null) return new ErrorResponse("Unknown entityId");
-                        ((IMyProgrammableBlock)pb).TryRun(r.Arg ?? "");
-                        return new RunResponse(true);
+                        var block = (IMyProgrammableBlock)pb;
+                        block.TryRun(r.Arg ?? "");
+                        // TryRun is synchronous on the game thread, so the Echo
+                        // output is already in DetailedInfo by the time we read
+                        // it. UNTESTED on real SE.
+                        var output = block.DetailedInfo?.ToString() ?? "";
+                        return new RunResponse(true, output);
+                    }
+
+                // === The Check, Output, CustomData, and CheckAll behaviors below
+                // === are UNTESTED against a real Space Engineers instance. The
+                // === SE game assemblies are unavailable in this build
+                // === environment, so they have only been exercised through the
+                // === simulator. They rely on IMyProgrammableBlock.DetailedInfo
+                // === (compile errors after Recompile, Echo output after a run)
+                // === and IMyTerminalBlock.CustomData.
+                case CheckRequest r:
+                    {
+                        var pb = Find(r.EntityId);
+                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        var block = (IMyProgrammableBlock)pb;
+                        block.Recompile();
+                        var code = block.ProgramData ?? "";
+                        var detail = block.DetailedInfo?.ToString() ?? "";
+                        var ok = LooksCompiled(detail);
+                        return new CheckResponse(r.EntityId, ok, detail, code.Length, block.IsRunning);
+                    }
+
+                case OutputRequest r:
+                    {
+                        var pb = Find(r.EntityId);
+                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        // Reads the script's Echo output (SE's DetailedInfo).
+                        // BEHAVIOR (from the official SE wiki, UNTESTED in this
+                        // plugin integration — only simulator-verified):
+                        //  - Echo appends to a StringBuilder; each call capped
+                        //    at 8000 chars.
+                        //  - The buffer ACCUMULATES across Echo calls and across
+                        //    runs; it is not cleared per run.
+                        //  - It is reset by a Recompile (constructor re-runs)
+                        //    and, in singleplayer, when the terminal is opened
+                        //    (a game bug). No documented total cap.
+                        // PRACTICAL NOTE: check_script() recompiles and so
+                        // clears this buffer (replacing it with compile status).
+                        // To capture a SINGLE run's output, recompile/check
+                        // first, then run_script, then get_output immediately.
+                        var output = ((IMyProgrammableBlock)pb).DetailedInfo?.ToString() ?? "";
+                        return new OutputResponse(output);
+                    }
+
+                case ReadCustomDataRequest r:
+                    {
+                        var pb = Find(r.EntityId);
+                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        // UNTESTED: relies on IMyTerminalBlock.CustomData.
+                        var data = ((IMyTerminalBlock)pb).CustomData ?? "";
+                        return new ReadCustomDataResponse(data);
+                    }
+
+                case WriteCustomDataRequest r:
+                    {
+                        var pb = Find(r.EntityId);
+                        if (pb is null) return new ErrorResponse("Unknown entityId");
+                        // UNTESTED: relies on IMyTerminalBlock.CustomData.
+                        ((IMyTerminalBlock)pb).CustomData = r.Data;
+                        return new WriteCustomDataResponse(true);
+                    }
+
+                case CheckAllRequest:
+                    {
+                        var results = new List<CheckResponse>();
+                        foreach (var block in EnumerateProgrammableBlocks())
+                        {
+                            var pb = (IMyProgrammableBlock)block;
+                            pb.Recompile();
+                            var code = pb.ProgramData ?? "";
+                            var detail = pb.DetailedInfo?.ToString() ?? "";
+                            results.Add(new CheckResponse(block.EntityId, LooksCompiled(detail), detail, code.Length, pb.IsRunning));
+                        }
+                        return new CheckAllResponse(results);
                     }
 
                 default:
@@ -176,6 +259,20 @@ namespace SpaceMcp.Plugin
             foreach (var block in EnumerateProgrammableBlocks())
                 if (block.EntityId == entityId) return block;
             return null;
+        }
+
+        /// <summary>
+        /// Heuristic for whether a recompile succeeded. UNTESTED against real
+        /// SE: the public SE API does not expose a clean compile-success flag,
+        /// so we treat the compiler output (DetailedInfo) as a failure when it
+        /// mentions an error or exception. The raw output is always passed
+        /// through via <see cref="CheckResponse.Detail"/>, so the model can read
+        /// the exact message even when this heuristic is wrong.
+        /// </summary>
+        private static bool LooksCompiled(string detail)
+        {
+            return !detail.Contains("error", StringComparison.OrdinalIgnoreCase)
+                && !detail.Contains("exception", StringComparison.OrdinalIgnoreCase);
         }
 
         private static IEnumerable<MyProgrammableBlock> EnumerateProgrammableBlocks()

@@ -65,6 +65,16 @@ namespace SpaceMcp.McpServer
 
         public Task<RunResponse> RunAsync(long entityId, string? arg, CancellationToken ct = default) => ExchangeAsync<RunResponse>(new RunRequest(entityId, arg), ct);
 
+        public Task<CheckResponse> CheckAsync(long entityId, CancellationToken ct = default) => ExchangeAsync<CheckResponse>(new CheckRequest(entityId), ct);
+
+        public Task<OutputResponse> OutputAsync(long entityId, CancellationToken ct = default) => ExchangeAsync<OutputResponse>(new OutputRequest(entityId), ct);
+
+        public Task<ReadCustomDataResponse> ReadCustomDataAsync(long entityId, CancellationToken ct = default) => ExchangeAsync<ReadCustomDataResponse>(new ReadCustomDataRequest(entityId), ct);
+
+        public Task<WriteCustomDataResponse> WriteCustomDataAsync(long entityId, string data, CancellationToken ct = default) => ExchangeAsync<WriteCustomDataResponse>(new WriteCustomDataRequest(entityId, data), ct);
+
+        public Task<CheckAllResponse> CheckAllAsync(CancellationToken ct = default) => ExchangeAsync<CheckAllResponse>(new CheckAllRequest(), ct);
+
         public void Dispose()
         {
         }
